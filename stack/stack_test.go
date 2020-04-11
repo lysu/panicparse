@@ -85,8 +85,8 @@ func TestCallPkg(t *testing.T) {
 		"/gopath/src/gopkg.in/yaml.v2/yaml.go",
 		153)
 	// Call methods.
-	compareString(t, pathJoin("yaml.v2", "yaml.go"), c.PkgSrc())
-	compareString(t, "yaml.go", c.SrcName())
+	compareString(t, pathJoin("yaml.v2", "yaml.go"), c.DirSrc)
+	compareString(t, "yaml.go", c.SrcName)
 
 	// ParseDump(guesspaths=true).
 	c.updateLocations("/goroot", "/goroot", map[string]string{"/gopath": "/gopath"})
@@ -104,8 +104,8 @@ func TestCallPkgMethod(t *testing.T) {
 		"/gopath/src/gopkg.in/yaml.v2/yaml.go",
 		153)
 	// Call methods.
-	compareString(t, pathJoin("yaml.v2", "yaml.go"), c.PkgSrc())
-	compareString(t, "yaml.go", c.SrcName())
+	compareString(t, pathJoin("yaml.v2", "yaml.go"), c.DirSrc)
+	compareString(t, "yaml.go", c.SrcName)
 
 	// ParseDump(guesspaths=true).
 	c.updateLocations("/goroot", "/goroot", map[string]string{"/gopath": "/gopath"})
@@ -123,8 +123,8 @@ func TestCallPkgRemote(t *testing.T) {
 		"/remote/src/gopkg.in/yaml.v2/yaml.go",
 		153)
 	// Call methods.
-	compareString(t, pathJoin("yaml.v2", "yaml.go"), c.PkgSrc())
-	compareString(t, "yaml.go", c.SrcName())
+	compareString(t, pathJoin("yaml.v2", "yaml.go"), c.DirSrc)
+	compareString(t, "yaml.go", c.SrcName)
 
 	// ParseDump(guesspaths=true).
 	c.updateLocations("/goroot", "/goroot", map[string]string{"/remote": "/local"})
@@ -142,8 +142,8 @@ func TestCallStdlib(t *testing.T) {
 		"/goroot/src/reflect/value.go",
 		2125)
 	// Call methods.
-	compareString(t, pathJoin("reflect", "value.go"), c.PkgSrc())
-	compareString(t, "value.go", c.SrcName())
+	compareString(t, pathJoin("reflect", "value.go"), c.DirSrc)
+	compareString(t, "value.go", c.SrcName)
 	compareString(t, "reflect", c.ImportPath())
 
 	// ParseDump(guesspaths=true).
@@ -162,8 +162,8 @@ func TestCallStdlibRemote(t *testing.T) {
 		"/remote/src/reflect/value.go",
 		2125)
 	// Call methods.
-	compareString(t, pathJoin("reflect", "value.go"), c.PkgSrc())
-	compareString(t, "value.go", c.SrcName())
+	compareString(t, pathJoin("reflect", "value.go"), c.DirSrc)
+	compareString(t, "value.go", c.SrcName)
 
 	// ParseDump(guesspaths=true).
 	c.updateLocations("/remote", "/local", map[string]string{"/gopath": "/gopath"})
@@ -181,8 +181,8 @@ func TestCallMain(t *testing.T) {
 		"/gopath/src/github.com/maruel/panicparse/cmd/pp/main.go",
 		428)
 	// Call methods.
-	compareString(t, pathJoin("pp", "main.go"), c.PkgSrc())
-	compareString(t, "main.go", c.SrcName())
+	compareString(t, pathJoin("pp", "main.go"), c.DirSrc)
+	compareString(t, "main.go", c.SrcName)
 	compareString(t, "", c.ImportPath())
 
 	// ParseDump(guesspaths=true).
@@ -202,8 +202,8 @@ func TestCallMismatched(t *testing.T) {
 		"/gopath/src/github.com/maruel/panicparse/cmd/panic/internal/incorrect/correct.go",
 		7)
 	// Call methods.
-	compareString(t, pathJoin("incorrect", "correct.go"), c.PkgSrc())
-	compareString(t, "correct.go", c.SrcName())
+	compareString(t, pathJoin("incorrect", "correct.go"), c.DirSrc)
+	compareString(t, "correct.go", c.SrcName)
 	compareString(t, "github.com/maruel/panicparse/cmd/panic/internal/incorrect", c.ImportPath())
 
 	// ParseDump(guesspaths=true).
@@ -223,8 +223,8 @@ func TestCallUTF8(t *testing.T) {
 		"/gopath/src/github.com/maruel/panicparse/cmd/panic/internal/ùtf8/ùtf8.go",
 		10)
 	// Call methods.
-	compareString(t, pathJoin("ùtf8", "ùtf8.go"), c.PkgSrc())
-	compareString(t, "ùtf8.go", c.SrcName())
+	compareString(t, pathJoin("ùtf8", "ùtf8.go"), c.DirSrc)
+	compareString(t, "ùtf8.go", c.SrcName)
 	compareString(t, "github.com/maruel/panicparse/cmd/panic/internal/ùtf8", c.ImportPath())
 
 	// ParseDump(guesspaths=true).
@@ -243,14 +243,8 @@ func TestCallC(t *testing.T) {
 		"/goroot/src/runtime/proc.c",
 		1472)
 	// Call methods.
-	compareString(t, pathJoin("runtime", "proc.c"), c.PkgSrc())
-	compareString(t, "proc.c", c.SrcName())
-
-	// Func methods.
-	compareString(t, "", c.ImportPath())
-	compareBool(t, false, c.Func.IsExported)
-	compareString(t, "findrunnable", c.Func.Name)
-	compareString(t, "findrunnable", c.Func.String())
+	compareString(t, pathJoin("runtime", "proc.c"), c.DirSrc)
+	compareString(t, "proc.c", c.SrcName)
 
 	// ParseDump(guesspaths=true).
 	c.updateLocations("/goroot", "/goroot", map[string]string{"/gopath": "/gopath"})
@@ -345,7 +339,9 @@ func newFunc(s string) Func {
 }
 
 func newCall(f string, a Args, s string, l int) Call {
-	return Call{Func: newFunc(f), Args: a, SrcPath: s, Line: l}
+	c := Call{Func: newFunc(f), Args: a}
+	c.init(s, l)
+	return c
 }
 
 var (

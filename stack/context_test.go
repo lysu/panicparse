@@ -1504,11 +1504,11 @@ func identifyPanicwebSignature(t *testing.T, b *Bucket, pwebDir string) panicweb
 			t.Fatalf("suspicious: %#v", b)
 			return pstUnknown
 		}
-		if b.Stack.Calls[0].SrcName() != "internal.go" {
+		if b.Stack.Calls[0].SrcName != "internal.go" {
 			t.Fatalf("suspicious: %#v", b)
 			return pstUnknown
 		}
-		if b.CreatedBy.SrcName() != "server.go" {
+		if b.CreatedBy.SrcName != "server.go" {
 			t.Fatalf("suspicious: %#v", b)
 			return pstUnknown
 		}
@@ -1542,7 +1542,8 @@ func identifyPanicwebSignature(t *testing.T, b *Bucket, pwebDir string) panicweb
 			localgopath := getGOPATHs()[0]
 			// If not using Go modules, the path is different as the vendored version
 			// is used instead.
-			pColorable := "pkg/mod/github.com/mattn/go-colorable@v0.1.6/noncolorable.go"
+			v := "@v0.1.6"
+			pColorable := "pkg/mod/github.com/mattn/go-colorable" + v + "/noncolorable.go"
 			pkgPrefix := ""
 			if !internaltest.IsUsingModules() {
 				t.Logf("Using vendored")
