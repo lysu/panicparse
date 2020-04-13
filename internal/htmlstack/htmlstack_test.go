@@ -6,6 +6,7 @@ package htmlstack
 
 import (
 	"bytes"
+	"context"
 	"fmt"
 	"html/template"
 	"io/ioutil"
@@ -244,7 +245,7 @@ func TestSymbol(t *testing.T) {
 func BenchmarkWrite(b *testing.B) {
 	b.ReportAllocs()
 	c := stack.NewContext()
-	if err := c.ParseDump(bytes.NewReader(internaltest.StaticPanicwebOutput()), ioutil.Discard); err != nil {
+	if err := c.ParseDump(context.Background(), bytes.NewReader(internaltest.StaticPanicwebOutput()), ioutil.Discard); err != nil {
 		b.Fatal(err)
 	}
 	if c.Goroutines == nil {

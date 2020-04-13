@@ -9,6 +9,7 @@ package stack
 import (
 	"bufio"
 	"bytes"
+	"context"
 	"errors"
 	"fmt"
 	"io"
@@ -73,28 +74,45 @@ func NewContext() *Context {
 //
 // Sets Goroutines if a stack trace was detected.
 //
+// If the context is canceled, the current data is returned and the context
+// error is returned.
+//
 // It pipes anything not detected as a panic stack trace from r into out. It
 // assumes there is junk before the actual stack trace. The junk is streamed to
 // out.
-func (c *Context) ParseDump(r io.Reader, out io.Writer) error {
+func (c *Context) ParseDump(ctx context.Context, r io.Reader, out io.Writer) error {
+	done := ctx.Done()
 	var err error
 	line := ""
 	scanner := bufio.NewScanner(r)
 	scanner.Split(scanLines)
 	s := scanningState{}
-	for scanner.Scan() {
-		if line, err = s.scan(scanner.Text()); line != "" {
-			if _, err2 := io.WriteString(out, line); err == nil {
-				err = err2
+	ch := make(chan bool, 1)
+loop:
+	for {
+		go func() {
+			ch <- scanner.Scan()
+		}()
+		select {
+		case <-done:
+			err = ctx.Err()
+			break loop
+		case b := <-ch:
+			if !b {
+				err = scanner.Err()
+				break loop
+			}
+			if line, err = s.scan(scanner.Text()); line != "" {
+				if _, err2 := io.WriteString(out, line); err == nil {
+					err = err2
+				}
+			}
+			if err != nil {
+				break loop
 			}
 		}
-		if err != nil {
-			break
-		}
 	}
-	if err == nil {
-		err = scanner.Err()
-	}
+
 	if s.goroutines != nil {
 		c.Goroutines = s.goroutines
 		// TODO(maruel): This should be optional too.

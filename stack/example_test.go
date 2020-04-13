@@ -6,6 +6,7 @@ package stack_test
 
 import (
 	"bytes"
+	"context"
 	"fmt"
 	"io"
 	"log"
@@ -31,7 +32,7 @@ func Example() {
 	// one goroutine returned.
 	in := bytes.NewBufferString(crash)
 	c := stack.NewContext()
-	if err := c.ParseDump(in, os.Stdout); err != nil {
+	if err := c.ParseDump(context.Background(), in, os.Stdout); err != nil {
 		log.Fatal(err)
 	}
 

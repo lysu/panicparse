@@ -6,6 +6,7 @@ package stack
 
 import (
 	"bytes"
+	"context"
 	"fmt"
 	"io/ioutil"
 	"os"
@@ -454,7 +455,7 @@ func TestAugment(t *testing.T) {
 			// Analyze it.
 			extra := bytes.Buffer{}
 			c := NewContext()
-			if err := c.ParseDump(bytes.NewBuffer(content), &extra); err != nil {
+			if err := c.ParseDump(context.Background(), bytes.NewBuffer(content), &extra); err != nil {
 				clean()
 				t.Fatalf("failed to parse input for test %s: %v", line.name, err)
 			}
@@ -482,7 +483,7 @@ func TestAugment(t *testing.T) {
 				// Analyze it.
 				extra.Reset()
 				c = NewContext()
-				if err := c.ParseDump(bytes.NewBuffer(content), &extra); err != nil {
+				if err := c.ParseDump(context.Background(), bytes.NewBuffer(content), &extra); err != nil {
 					clean()
 					t.Fatalf("failed to parse input for test %s: %v", line.name, err)
 				}

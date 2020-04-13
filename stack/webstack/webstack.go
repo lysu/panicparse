@@ -10,6 +10,7 @@ package webstack
 
 import (
 	"bytes"
+	"context"
 	"io/ioutil"
 	"net/http"
 	"runtime"
@@ -117,7 +118,7 @@ func snapshot(maxmem int) (*stack.Context, error) {
 	// TODO(maruel): No disk I/O should be done here, albeit GOROOT should still
 	// be guessed. Thus guesspaths shall be neither true nor false.
 	c := stack.NewContext()
-	if err := c.ParseDump(bytes.NewReader(buf), ioutil.Discard); err != nil {
+	if err := c.ParseDump(context.Background(), bytes.NewReader(buf), ioutil.Discard); err != nil {
 		return c, err
 	}
 	c.GuessPaths()

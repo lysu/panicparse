@@ -17,6 +17,7 @@
 package internal
 
 import (
+	"context"
 	"errors"
 	"flag"
 	"fmt"
@@ -80,7 +81,7 @@ func writeToConsole(out io.Writer, p *Palette, buckets []*stack.Bucket, pf pathF
 // If html is used, a stack trace is written to this file instead.
 func process(in io.Reader, out io.Writer, p *Palette, s stack.Similarity, pf pathFormat, parse, rebase bool, html string, filter, match *regexp.Regexp) error {
 	c := stack.NewContext()
-	if err := c.ParseDump(in, out); err != nil || c.Goroutines == nil {
+	if err := c.ParseDump(context.Background(), in, out); err != nil || c.Goroutines == nil {
 		return err
 	}
 	if rebase {

@@ -6,6 +6,7 @@ package stack
 
 import (
 	"bytes"
+	"context"
 	"io/ioutil"
 	"strings"
 	"testing"
@@ -30,7 +31,7 @@ func TestAggregateNotAggressive(t *testing.T) {
 		"",
 	}
 	c := NewContext()
-	if err := c.ParseDump(bytes.NewBufferString(strings.Join(data, "\n")), ioutil.Discard); err != nil {
+	if err := c.ParseDump(context.Background(), bytes.NewBufferString(strings.Join(data, "\n")), ioutil.Discard); err != nil {
 		t.Fatal(err)
 	}
 	want := []*Bucket{
@@ -89,7 +90,7 @@ func TestAggregateExactMatching(t *testing.T) {
 		"",
 	}
 	c := NewContext()
-	if err := c.ParseDump(bytes.NewBufferString(strings.Join(data, "\n")), &bytes.Buffer{}); err != nil {
+	if err := c.ParseDump(context.Background(), bytes.NewBufferString(strings.Join(data, "\n")), &bytes.Buffer{}); err != nil {
 		t.Fatal(err)
 	}
 	want := []*Bucket{
@@ -138,7 +139,7 @@ func TestAggregateAggressive(t *testing.T) {
 		"",
 	}
 	c := NewContext()
-	if err := c.ParseDump(bytes.NewBufferString(strings.Join(data, "\n")), ioutil.Discard); err != nil {
+	if err := c.ParseDump(context.Background(), bytes.NewBufferString(strings.Join(data, "\n")), ioutil.Discard); err != nil {
 		t.Fatal(err)
 	}
 	want := []*Bucket{
@@ -167,7 +168,7 @@ func TestAggregateAggressive(t *testing.T) {
 func BenchmarkAggregate(b *testing.B) {
 	b.ReportAllocs()
 	c := NewContext()
-	if err := c.ParseDump(bytes.NewReader(internaltest.StaticPanicwebOutput()), ioutil.Discard); err != nil {
+	if err := c.ParseDump(context.Background(), bytes.NewReader(internaltest.StaticPanicwebOutput()), ioutil.Discard); err != nil {
 		b.Fatal(err)
 	}
 	c.GuessPaths()
