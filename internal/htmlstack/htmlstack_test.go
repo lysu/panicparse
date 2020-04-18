@@ -243,13 +243,14 @@ func TestSymbol(t *testing.T) {
 
 func BenchmarkWrite(b *testing.B) {
 	b.ReportAllocs()
-	c, err := stack.ParseDump(bytes.NewReader(internaltest.StaticPanicwebOutput()), ioutil.Discard, true)
-	if err != nil {
+	c := stack.NewContext()
+	if err := c.ParseDump(bytes.NewReader(internaltest.StaticPanicwebOutput()), ioutil.Discard); err != nil {
 		b.Fatal(err)
 	}
-	if c == nil {
+	if c.Goroutines == nil {
 		b.Fatal("missing context")
 	}
+	c.GuessPaths()
 	buckets := stack.Aggregate(c.Goroutines, stack.AnyPointer)
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {

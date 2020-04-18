@@ -8,6 +8,7 @@ import (
 	"bytes"
 	"fmt"
 	"io"
+	"log"
 	"os"
 	"path/filepath"
 
@@ -29,10 +30,13 @@ func Example() {
 	// Optional: Check for GOTRACEBACK being set, in particular if there is only
 	// one goroutine returned.
 	in := bytes.NewBufferString(crash)
-	c, err := stack.ParseDump(in, os.Stdout, true)
-	if err != nil {
-		return
+	c := stack.NewContext()
+	if err := c.ParseDump(in, os.Stdout); err != nil {
+		log.Fatal(err)
 	}
+
+	// Populate local paths.
+	c.GuessPaths()
 
 	// Find out similar goroutine traces and group them into buckets.
 	buckets := stack.Aggregate(c.Goroutines, stack.AnyValue)

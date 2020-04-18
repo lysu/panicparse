@@ -29,8 +29,8 @@ func TestAggregateNotAggressive(t *testing.T) {
 		"	/gopath/src/github.com/maruel/panicparse/stack/stack.go:72 +0x49",
 		"",
 	}
-	c, err := ParseDump(bytes.NewBufferString(strings.Join(data, "\n")), ioutil.Discard, false)
-	if err != nil {
+	c := NewContext()
+	if err := c.ParseDump(bytes.NewBufferString(strings.Join(data, "\n")), ioutil.Discard); err != nil {
 		t.Fatal(err)
 	}
 	want := []*Bucket{
@@ -88,8 +88,8 @@ func TestAggregateExactMatching(t *testing.T) {
 		"	/gopath/src/github.com/maruel/panicparse/stack/stack.go:74 +0xeb",
 		"",
 	}
-	c, err := ParseDump(bytes.NewBufferString(strings.Join(data, "\n")), &bytes.Buffer{}, false)
-	if err != nil {
+	c := NewContext()
+	if err := c.ParseDump(bytes.NewBufferString(strings.Join(data, "\n")), &bytes.Buffer{}); err != nil {
 		t.Fatal(err)
 	}
 	want := []*Bucket{
@@ -137,8 +137,8 @@ func TestAggregateAggressive(t *testing.T) {
 		"	/gopath/src/github.com/maruel/panicparse/stack/stack.go:72 +0x49",
 		"",
 	}
-	c, err := ParseDump(bytes.NewBufferString(strings.Join(data, "\n")), ioutil.Discard, false)
-	if err != nil {
+	c := NewContext()
+	if err := c.ParseDump(bytes.NewBufferString(strings.Join(data, "\n")), ioutil.Discard); err != nil {
 		t.Fatal(err)
 	}
 	want := []*Bucket{
@@ -166,11 +166,12 @@ func TestAggregateAggressive(t *testing.T) {
 
 func BenchmarkAggregate(b *testing.B) {
 	b.ReportAllocs()
-	c, err := ParseDump(bytes.NewReader(internaltest.StaticPanicwebOutput()), ioutil.Discard, true)
-	if err != nil {
+	c := NewContext()
+	if err := c.ParseDump(bytes.NewReader(internaltest.StaticPanicwebOutput()), ioutil.Discard); err != nil {
 		b.Fatal(err)
 	}
-	if c == nil {
+	c.GuessPaths()
+	if c.Goroutines == nil {
 		b.Fatal("missing context")
 	}
 	b.ResetTimer()

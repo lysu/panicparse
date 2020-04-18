@@ -25,11 +25,12 @@ import (
 func TestParseDumpNothing(t *testing.T) {
 	t.Parallel()
 	extra := &bytes.Buffer{}
-	c, err := ParseDump(bytes.NewBufferString("\n"), extra, true)
-	if err != nil {
+	c := NewContext()
+	if err := c.ParseDump(bytes.NewBufferString("\n"), extra); err != nil {
 		t.Fatal(err)
 	}
-	if c != nil {
+	c.GuessPaths()
+	if c.Goroutines != nil {
 		t.Fatalf("unexpected %v", c)
 	}
 }
@@ -55,11 +56,12 @@ func TestParseDump1(t *testing.T) {
 		"	/gopath/src/github.com/maruel/panicparse/stack/stack.go:428 +0x27",
 		"",
 	}
+	c := NewContext()
 	extra := &bytes.Buffer{}
-	c, err := ParseDump(bytes.NewBufferString(strings.Join(data, "\n")), extra, true)
-	if err != nil {
+	if err := c.ParseDump(bytes.NewBufferString(strings.Join(data, "\n")), extra); err != nil {
 		t.Fatal(err)
 	}
+	c.GuessPaths()
 	compareString(t, long+"\npanic: reflect.Set: value of type\n\n", extra.String())
 	want := []*Goroutine{
 		{
@@ -93,7 +95,7 @@ func TestParseDump1(t *testing.T) {
 		},
 	}
 	for i := range want {
-		want[i].updateLocations(c.GOROOT, c.localgoroot, c.GOPATHs)
+		want[i].updateLocations(c.GOROOT, c.LocalGOROOT, c.GOPATHs)
 	}
 	compareGoroutines(t, want, c.Goroutines)
 }
@@ -117,11 +119,12 @@ func TestParseDumpLongWait(t *testing.T) {
 		"	/gopath/src/gopkg.in/yaml.v2/yaml.go:153 +0xc6",
 		"",
 	}
+	c := NewContext()
 	extra := &bytes.Buffer{}
-	c, err := ParseDump(bytes.NewBufferString(strings.Join(data, "\n")), extra, true)
-	if err != nil {
+	if err := c.ParseDump(bytes.NewBufferString(strings.Join(data, "\n")), extra); err != nil {
 		t.Fatal(err)
 	}
+	c.GuessPaths()
 	compareString(t, "panic: bleh\n\n", extra.String())
 	want := []*Goroutine{
 		{
@@ -178,7 +181,7 @@ func TestParseDumpLongWait(t *testing.T) {
 		},
 	}
 	for i := range want {
-		want[i].updateLocations(c.GOROOT, c.localgoroot, c.GOPATHs)
+		want[i].updateLocations(c.GOROOT, c.LocalGOROOT, c.GOPATHs)
 	}
 	compareGoroutines(t, want, c.Goroutines)
 }
@@ -193,9 +196,9 @@ func TestParseDumpAsm(t *testing.T) {
 		"\t/goroot/src/runtime/asm_amd64.s:198 fp=0xc20cfb80d8 sp=0xc20cfb80d0",
 		"",
 	}
+	c := NewContext()
 	extra := &bytes.Buffer{}
-	c, err := ParseDump(bytes.NewBufferString(strings.Join(data, "\n")), extra, false)
-	if err != nil {
+	if err := c.ParseDump(bytes.NewBufferString(strings.Join(data, "\n")), extra); err != nil {
 		t.Fatal(err)
 	}
 	want := []*Goroutine{
@@ -230,9 +233,9 @@ func TestParseDumpAsmGo1dot13(t *testing.T) {
 		"\t/goroot/src/runtime/asm_amd64.s:198 fp=0xc20cfb80d8 sp=0xc20cfb80d0 pc=0x5007be",
 		"",
 	}
+	c := NewContext()
 	extra := &bytes.Buffer{}
-	c, err := ParseDump(bytes.NewBufferString(strings.Join(data, "\n")), extra, false)
-	if err != nil {
+	if err := c.ParseDump(bytes.NewBufferString(strings.Join(data, "\n")), extra); err != nil {
 		t.Fatal(err)
 	}
 	want := []*Goroutine{
@@ -267,8 +270,9 @@ func TestParseDumpLineErr(t *testing.T) {
 		"\t/gopath/src/github.com/maruel/panicparse/stack/stack.go:12345678901234567890",
 		"",
 	}
+	c := NewContext()
 	extra := &bytes.Buffer{}
-	c, err := ParseDump(bytes.NewBufferString(strings.Join(data, "\n")), extra, false)
+	err := c.ParseDump(bytes.NewBufferString(strings.Join(data, "\n")), extra)
 	compareErr(t, errors.New("failed to parse int on line: \"/gopath/src/github.com/maruel/panicparse/stack/stack.go:12345678901234567890\""), err)
 	want := []*Goroutine{
 		{
@@ -285,7 +289,7 @@ func TestParseDumpLineErr(t *testing.T) {
 		},
 	}
 	for i := range want {
-		want[i].updateLocations(c.GOROOT, c.localgoroot, c.GOPATHs)
+		want[i].updateLocations(c.GOROOT, c.LocalGOROOT, c.GOPATHs)
 	}
 	compareGoroutines(t, want, c.Goroutines)
 }
@@ -302,8 +306,9 @@ func TestParseDumpCreatedErr(t *testing.T) {
 		"\t/goroot/src/testing/testing.go:123456789012345678901 +0xa8b",
 		"",
 	}
+	c := NewContext()
 	extra := &bytes.Buffer{}
-	c, err := ParseDump(bytes.NewBufferString(strings.Join(data, "\n")), extra, false)
+	err := c.ParseDump(bytes.NewBufferString(strings.Join(data, "\n")), extra)
 	compareErr(t, errors.New("failed to parse int on line: \"/goroot/src/testing/testing.go:123456789012345678901 +0xa8b\""), err)
 	want := []*Goroutine{
 		{
@@ -337,8 +342,9 @@ func TestParseDumpValueErr(t *testing.T) {
 		"\t/gopath/src/github.com/maruel/panicparse/stack/stack.go:9",
 		"",
 	}
+	c := NewContext()
 	extra := &bytes.Buffer{}
-	c, err := ParseDump(bytes.NewBufferString(strings.Join(data, "\n")), extra, false)
+	err := c.ParseDump(bytes.NewBufferString(strings.Join(data, "\n")), extra)
 	compareErr(t, errors.New("failed to parse int on line: \"github.com/maruel/panicparse/stack/stack.recurseType(123456789012345678901)\""), err)
 	want := []*Goroutine{
 		{
@@ -355,7 +361,7 @@ func TestParseDumpValueErr(t *testing.T) {
 		},
 	}
 	for i := range want {
-		want[i].updateLocations(c.GOROOT, c.localgoroot, c.GOPATHs)
+		want[i].updateLocations(c.GOROOT, c.LocalGOROOT, c.GOPATHs)
 	}
 	compareGoroutines(t, want, c.Goroutines)
 }
@@ -368,8 +374,9 @@ func TestParseDumpInconsistentIndent(t *testing.T) {
 		" \t/gopath/src/github.com/maruel/panicparse/stack/stack.go:1",
 		"",
 	}
+	c := NewContext()
 	extra := &bytes.Buffer{}
-	c, err := ParseDump(bytes.NewBufferString(strings.Join(data, "\n")), extra, false)
+	err := c.ParseDump(bytes.NewBufferString(strings.Join(data, "\n")), extra)
 	compareErr(t, errors.New(`inconsistent indentation: " \t/gopath/src/github.com/maruel/panicparse/stack/stack.go:1", expected "  "`), err)
 	want := []*Goroutine{
 		{
@@ -400,8 +407,9 @@ func TestParseDumpOrderErr(t *testing.T) {
 		"\t/goroot/src/runtime/asm_amd64.s:198 fp=0xc20cfb80d8 sp=0xc20cfb80d0",
 		"",
 	}
+	c := NewContext()
 	extra := &bytes.Buffer{}
-	c, err := ParseDump(bytes.NewBufferString(strings.Join(data, "\n")), extra, false)
+	err := c.ParseDump(bytes.NewBufferString(strings.Join(data, "\n")), extra)
 	compareErr(t, errors.New("expected a function after a goroutine header, got: \"/gopath/src/gopkg.in/yaml.v2/yaml.go:153 +0xc6\""), err)
 	want := []*Goroutine{
 		{
@@ -428,8 +436,8 @@ func TestParseDumpElided(t *testing.T) {
 		"",
 	}
 	extra := &bytes.Buffer{}
-	c, err := ParseDump(bytes.NewBufferString(strings.Join(data, "\n")), extra, false)
-	if err != nil {
+	c := NewContext()
+	if err := c.ParseDump(bytes.NewBufferString(strings.Join(data, "\n")), extra); err != nil {
 		t.Fatal(err)
 	}
 	want := []*Goroutine{
@@ -486,9 +494,9 @@ func TestParseDumpSysCall(t *testing.T) {
 		"\t/goroot/src/os/signal/signal_unix.go:27 +0x35",
 		"",
 	}
+	c := NewContext()
 	extra := &bytes.Buffer{}
-	c, err := ParseDump(bytes.NewBufferString(strings.Join(data, "\n")), extra, false)
-	if err != nil {
+	if err := c.ParseDump(bytes.NewBufferString(strings.Join(data, "\n")), extra); err != nil {
 		t.Fatal(err)
 	}
 	want := []*Goroutine{
@@ -550,9 +558,9 @@ func TestParseDumpUnavailCreated(t *testing.T) {
 		"\t/gopath/src/github.com/maruel/panicparse/stack/stack.go:131 +0x381",
 		"",
 	}
+	c := NewContext()
 	extra := &bytes.Buffer{}
-	c, err := ParseDump(bytes.NewBufferString(strings.Join(data, "\n")), extra, false)
-	if err != nil {
+	if err := c.ParseDump(bytes.NewBufferString(strings.Join(data, "\n")), extra); err != nil {
 		t.Fatal(err)
 	}
 	want := []*Goroutine{
@@ -586,9 +594,9 @@ func TestParseDumpUnavail(t *testing.T) {
 		"",
 		"",
 	}
+	c := NewContext()
 	extra := &bytes.Buffer{}
-	c, err := ParseDump(bytes.NewBufferString(strings.Join(data, "\n")), extra, false)
-	if err != nil {
+	if err := c.ParseDump(bytes.NewBufferString(strings.Join(data, "\n")), extra); err != nil {
 		t.Fatal(err)
 	}
 	want := []*Goroutine{
@@ -616,8 +624,9 @@ func TestParseDumpUnavailError(t *testing.T) {
 		"\tgoroutine running on other thread; stack unavailable",
 		"junk",
 	}
+	c := NewContext()
 	extra := &bytes.Buffer{}
-	c, err := ParseDump(bytes.NewBufferString(strings.Join(data, "\n")), extra, false)
+	err := c.ParseDump(bytes.NewBufferString(strings.Join(data, "\n")), extra)
 	compareErr(t, errors.New("expected empty line after unavailable stack, got: \"junk\""), err)
 	want := []*Goroutine{
 		{
@@ -647,8 +656,8 @@ func TestParseDumpNoOffset(t *testing.T) {
 		"	/gopath/src/github.com/maruel/panicparse/stack/stack.go:113 +0x43b",
 		"",
 	}
-	c, err := ParseDump(bytes.NewBufferString(strings.Join(data, "\n")), ioutil.Discard, false)
-	if err != nil {
+	c := NewContext()
+	if err := c.ParseDump(bytes.NewBufferString(strings.Join(data, "\n")), ioutil.Discard); err != nil {
 		t.Fatal(err)
 	}
 	wantGR := []*Goroutine{
@@ -686,8 +695,9 @@ func TestParseDumpHeaderError(t *testing.T) {
 		"goroutine 1 [running]:",
 		"junk",
 	}
+	c := NewContext()
 	extra := &bytes.Buffer{}
-	c, err := ParseDump(bytes.NewBufferString(strings.Join(data, "\n")), extra, false)
+	err := c.ParseDump(bytes.NewBufferString(strings.Join(data, "\n")), extra)
 	compareErr(t, errors.New("expected a function after a goroutine header, got: \"junk\""), err)
 	want := []*Goroutine{
 		{
@@ -710,8 +720,9 @@ func TestParseDumpFileError(t *testing.T) {
 		"github.com/maruel/panicparse/stack.func·002()",
 		"junk",
 	}
+	c := NewContext()
 	extra := &bytes.Buffer{}
-	c, err := ParseDump(bytes.NewBufferString(strings.Join(data, "\n")), extra, false)
+	err := c.ParseDump(bytes.NewBufferString(strings.Join(data, "\n")), extra)
 	compareErr(t, errors.New("expected a file after a function, got: \"junk\""), err)
 	want := []*Goroutine{
 		{
@@ -744,9 +755,9 @@ func TestParseDumpCreated(t *testing.T) {
 		"\t/gopath/src/github.com/maruel/panicparse/stack/stack.go:131 +0x381",
 		"exit status 2",
 	}
+	c := NewContext()
 	extra := &bytes.Buffer{}
-	c, err := ParseDump(bytes.NewBufferString(strings.Join(data, "\n")), extra, false)
-	if err != nil {
+	if err := c.ParseDump(bytes.NewBufferString(strings.Join(data, "\n")), extra); err != nil {
 		t.Fatal(err)
 	}
 	want := []*Goroutine{
@@ -788,8 +799,9 @@ func TestParseDumpCreatedError(t *testing.T) {
 		"created by github.com/maruel/panicparse/stack.New",
 		"junk",
 	}
+	c := NewContext()
 	extra := &bytes.Buffer{}
-	c, err := ParseDump(bytes.NewBufferString(strings.Join(data, "\n")), extra, false)
+	err := c.ParseDump(bytes.NewBufferString(strings.Join(data, "\n")), extra)
 	compareErr(t, errors.New("expected a file after a created line, got: \"junk\""), err)
 	want := []*Goroutine{
 		{
@@ -835,8 +847,8 @@ func TestParseDumpCCode(t *testing.T) {
 		"        /goroot/src/runtime/asm_amd64.s:186 +0x5a",
 		"",
 	}
-	c, err := ParseDump(bytes.NewBufferString(strings.Join(data, "\n")), ioutil.Discard, false)
-	if err != nil {
+	c := NewContext()
+	if err := c.ParseDump(bytes.NewBufferString(strings.Join(data, "\n")), ioutil.Discard); err != nil {
 		t.Fatal(err)
 	}
 	wantGR := []*Goroutine{
@@ -909,9 +921,8 @@ func TestParseDumpWithCarriageReturn(t *testing.T) {
 		"	/gopath/src/github.com/maruel/panicparse/stack/stack.go:428 +0x27",
 		"",
 	}
-
-	c, err := ParseDump(bytes.NewBufferString(strings.Join(data, "\r\n")), ioutil.Discard, false)
-	if err != nil {
+	c := NewContext()
+	if err := c.ParseDump(bytes.NewBufferString(strings.Join(data, "\r\n")), ioutil.Discard); err != nil {
 		t.Fatal(err)
 	}
 	want := []*Goroutine{
@@ -973,9 +984,9 @@ func TestParseDumpIndented(t *testing.T) {
 		"",
 		"",
 	}
+	c := NewContext()
 	extra := bytes.Buffer{}
-	c, err := ParseDump(bytes.NewBufferString(strings.Join(data, "\n")), &extra, false)
-	if err != nil {
+	if err := c.ParseDump(bytes.NewBufferString(strings.Join(data, "\n")), &extra); err != nil {
 		t.Fatal(err)
 	}
 	compareString(t, strings.Join(data[:7], "\n")+"\n", extra.String())
@@ -1043,13 +1054,13 @@ func TestParseDumpRace(t *testing.T) {
 		"==================",
 		"",
 	}
+	c := NewContext()
 	extra := &bytes.Buffer{}
-	c, err := ParseDump(bytes.NewBufferString(strings.Join(data, "\n")), extra, false)
-	if err != nil {
+	if err := c.ParseDump(bytes.NewBufferString(strings.Join(data, "\n")), extra); err != nil {
 		t.Fatal(err)
 	}
 	// Confirm that it doesn't work yet.
-	if c != nil {
+	if c.Goroutines != nil {
 		t.Fatal("expected c to be nil")
 	}
 	compareString(t, strings.Join(data, "\n"), extra.String())
@@ -1192,19 +1203,20 @@ func TestPanic(t *testing.T) {
 		t.Run(cmd, func(t *testing.T) {
 			t.Parallel()
 			b := bytes.Buffer{}
-			c, err := ParseDump(bytes.NewReader(data), &b, true)
-			if err != nil {
+			c := NewContext()
+			if err := c.ParseDump(bytes.NewReader(data), &b); err != nil {
 				t.Fatal(err)
 			}
+			c.GuessPaths()
 			if cmd == "race" {
 				// TODO(maruel): Fix this.
-				if c != nil {
+				if c.Goroutines != nil {
 					t.Fatal("unexpected context")
 				}
 				return
 			}
 
-			if c == nil {
+			if c.Goroutines == nil {
 				t.Fatal("context is nil")
 			}
 			if f := custom[cmd]; f != nil {
@@ -1365,12 +1377,13 @@ func testPanicUTF8(t *testing.T, c *Context, b *bytes.Buffer, ppDir string) {
 // asleep".
 func TestPanicweb(t *testing.T) {
 	t.Parallel()
+	c := NewContext()
 	b := bytes.Buffer{}
-	c, err := ParseDump(bytes.NewReader(internaltest.PanicwebOutput()), &b, true)
-	if err != nil {
+	if err := c.ParseDump(bytes.NewReader(internaltest.PanicwebOutput()), &b); err != nil {
 		t.Fatal(err)
 	}
-	if c == nil {
+	c.GuessPaths()
+	if c.Goroutines == nil {
 		t.Fatal("context is nil")
 	}
 	if b.String() != "panic: Here's a snapshot of a normal web server.\n\n" {
@@ -1424,11 +1437,12 @@ func BenchmarkParseDump_Guess(b *testing.B) {
 	data := internaltest.StaticPanicwebOutput()
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
-		c, err := ParseDump(bytes.NewReader(data), ioutil.Discard, true)
-		if err != nil {
+		c := NewContext()
+		if err := c.ParseDump(bytes.NewReader(data), ioutil.Discard); err != nil {
 			b.Fatal(err)
 		}
-		if c == nil {
+		c.GuessPaths()
+		if c.Goroutines == nil {
 			b.Fatal("missing context")
 		}
 	}
@@ -1439,11 +1453,11 @@ func BenchmarkParseDump_NoGuess(b *testing.B) {
 	data := internaltest.StaticPanicwebOutput()
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
-		c, err := ParseDump(bytes.NewReader(data), ioutil.Discard, false)
-		if err != nil {
+		c := NewContext()
+		if err := c.ParseDump(bytes.NewReader(data), ioutil.Discard); err != nil {
 			b.Fatal(err)
 		}
-		if c == nil {
+		if c.Goroutines == nil {
 			b.Fatal("missing context")
 		}
 	}

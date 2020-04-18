@@ -26,6 +26,11 @@ import (
 //
 // It contains the deduced GOROOT and GOPATH, if guesspaths is true.
 type Context struct {
+	// LocalGOROOT is GOROOT with "/" as path separator. No trailing "/".
+	LocalGOROOT string
+	// LocalGOPATHs is GOPATH with "/" as path separator. No trailing "/".
+	LocalGOPATHs []string
+
 	// Goroutines is the Goroutines found.
 	//
 	// They are in the order that they were printed.
@@ -48,44 +53,61 @@ type Context struct {
 	// Nil is guesspaths was false.
 	GOPATHs map[string]string
 
-	// localgoroot is GOROOT with "/" as path separator. No trailing "/".
-	localgoroot string
-	// localgopaths is GOPATH with "/" as path separator. No trailing "/".
-	localgopaths []string
+	// Disallow initialization with unnamed parameters.
+	_ struct{}
+}
+
+// NewContext returns a new Context with LocalGOROOT and LocalGOPATHs
+// initialized.
+func NewContext() *Context {
+	return &Context{
+		LocalGOROOT:  strings.Replace(runtime.GOROOT(), "\\", "/", -1),
+		LocalGOPATHs: getGOPATHs(),
+	}
 }
 
 // ParseDump processes the output from runtime.Stack().
 //
-// Returns nil *Context if no stack trace was detected.
+// Sets Goroutines if a stack trace was detected.
 //
 // It pipes anything not detected as a panic stack trace from r into out. It
 // assumes there is junk before the actual stack trace. The junk is streamed to
 // out.
-//
-// If guesspaths is false, no guessing of GOROOT and GOPATH is done, and Call
-// entites do not have LocalSrcPath and IsStdlib filled in. If true, be warned
-// that file presence is done, which means some level of disk I/O.
-func ParseDump(r io.Reader, out io.Writer, guesspaths bool) (*Context, error) {
-	goroutines, err := parseDump(r, out)
-	if len(goroutines) == 0 {
-		return nil, err
-	}
-	c := &Context{
-		Goroutines:   goroutines,
-		localgoroot:  strings.Replace(runtime.GOROOT(), "\\", "/", -1),
-		localgopaths: getGOPATHs(),
-	}
-	nameArguments(goroutines)
-	// Corresponding local values on the host for Context.
-	if guesspaths {
-		c.findRoots()
-		for _, r := range c.Goroutines {
-			// Note that this is important to call it even if
-			// c.GOROOT == c.localgoroot.
-			r.updateLocations(c.GOROOT, c.localgoroot, c.GOPATHs)
+func (c *Context) ParseDump(r io.Reader, out io.Writer) error {
+	var err error
+	line := ""
+	scanner := bufio.NewScanner(r)
+	scanner.Split(scanLines)
+	s := scanningState{}
+	for scanner.Scan() {
+		if line, err = s.scan(scanner.Text()); line != "" {
+			if _, err2 := io.WriteString(out, line); err == nil {
+				err = err2
+			}
+		}
+		if err != nil {
+			break
 		}
 	}
-	return c, err
+	if err == nil {
+		err = scanner.Err()
+	}
+	if s.goroutines != nil {
+		c.Goroutines = s.goroutines
+		// TODO(maruel): This should be optional too.
+		nameArguments(c.Goroutines)
+	}
+	return err
+}
+
+// GuessPaths updates the call stacks with local information if found.
+func (c *Context) GuessPaths() {
+	c.findRoots()
+	for _, r := range c.Goroutines {
+		// Note that this is important to call it even if
+		// c.GOROOT == c.localGOROOT.
+		r.updateLocations(c.GOROOT, c.LocalGOROOT, c.GOPATHs)
+	}
 }
 
 // Private stuff.
@@ -140,24 +162,6 @@ var (
 	reRacePreviousOperationMainHeader = regexp.MustCompile("^Previous (read|write) at (0x[0-9a-f]+) by main goroutine:$")
 	reRaceGoroutine                   = regexp.MustCompile("^Goroutine (\\d+) \\((running|finished)\\) created at:$")
 )
-
-func parseDump(r io.Reader, out io.Writer) ([]*Goroutine, error) {
-	scanner := bufio.NewScanner(r)
-	scanner.Split(scanLines)
-	// Do not enable race detection parsing yet, since it cannot be returned in
-	// Context at the moment.
-	s := scanningState{}
-	for scanner.Scan() {
-		line, err := s.scan(scanner.Text())
-		if line != "" {
-			_, _ = io.WriteString(out, line)
-		}
-		if err != nil {
-			return s.goroutines, err
-		}
-	}
-	return s.goroutines, scanner.Err()
-}
 
 // scanLines is similar to bufio.ScanLines except that it:
 //     - doesn't drop '\n'
@@ -757,14 +761,14 @@ func (c *Context) findRoots() {
 		}
 		parts := splitPath(f)
 		if c.GOROOT == "" {
-			if r := rootedIn(c.localgoroot+"/src", parts); r != "" {
+			if r := rootedIn(c.LocalGOROOT+"/src", parts); r != "" {
 				c.GOROOT = r[:len(r)-4]
 				//log.Printf("Found GOROOT=%s", c.GOROOT)
 				continue
 			}
 		}
 		found := false
-		for _, l := range c.localgopaths {
+		for _, l := range c.LocalGOPATHs {
 			if r := rootedIn(l+"/src", parts); r != "" {
 				//log.Printf("Found GOPATH=%s", r[:len(r)-4])
 				c.GOPATHs[r[:len(r)-4]] = l

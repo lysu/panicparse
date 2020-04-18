@@ -453,8 +453,8 @@ func TestAugment(t *testing.T) {
 
 			// Analyze it.
 			extra := bytes.Buffer{}
-			c, err := ParseDump(bytes.NewBuffer(content), &extra, false)
-			if err != nil {
+			c := NewContext()
+			if err := c.ParseDump(bytes.NewBuffer(content), &extra); err != nil {
 				clean()
 				t.Fatalf("failed to parse input for test %s: %v", line.name, err)
 			}
@@ -481,7 +481,8 @@ func TestAugment(t *testing.T) {
 
 				// Analyze it.
 				extra.Reset()
-				if c, err = ParseDump(bytes.NewBuffer(content), &extra, false); err != nil {
+				c = NewContext()
+				if err := c.ParseDump(bytes.NewBuffer(content), &extra); err != nil {
 					clean()
 					t.Fatalf("failed to parse input for test %s: %v", line.name, err)
 				}

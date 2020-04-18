@@ -116,5 +116,10 @@ func snapshot(maxmem int) (*stack.Context, error) {
 	}
 	// TODO(maruel): No disk I/O should be done here, albeit GOROOT should still
 	// be guessed. Thus guesspaths shall be neither true nor false.
-	return stack.ParseDump(bytes.NewReader(buf), ioutil.Discard, true)
+	c := stack.NewContext()
+	if err := c.ParseDump(bytes.NewReader(buf), ioutil.Discard); err != nil {
+		return c, err
+	}
+	c.GuessPaths()
+	return c, nil
 }
