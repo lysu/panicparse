@@ -18,7 +18,7 @@ import (
 	"testing"
 
 	"github.com/google/go-cmp/cmp"
-	"github.com/maruel/panicparse/internal/internaltest"
+	"github.com/maruel/panicparse/v2/internal/internaltest"
 )
 
 func TestParseDumpNothing(t *testing.T) {
@@ -1265,6 +1265,10 @@ func testPanicMismatched(t *testing.T, c *Context, b *bytes.Buffer, ppDir string
 	if b.String() != "GOTRACEBACK=all\npanic: 42\n\n" {
 		t.Fatalf("output: %q", b.String())
 	}
+	ver := "/v2"
+	if !internaltest.IsUsingModules() {
+		ver = ""
+	}
 	want := []*Goroutine{
 		{
 			Signature: Signature{
@@ -1277,7 +1281,7 @@ func testPanicMismatched(t *testing.T, c *Context, b *bytes.Buffer, ppDir string
 							//
 							// Here the package name is "correct". There is no way to deduce
 							// this from the stack trace.
-							"github.com/maruel/panicparse/cmd/panic/internal/incorrect.Panic",
+							"github.com/maruel/panicparse"+ver+"/cmd/panic/internal/incorrect.Panic",
 							Args{},
 							pathJoin(ppDir, "internal", "incorrect", "correct.go"),
 							7),
@@ -1411,6 +1415,10 @@ func testPanicUTF8(t *testing.T, c *Context, b *bytes.Buffer, ppDir string) {
 	if b.String() != "GOTRACEBACK=all\npanic: 42\n\n" {
 		t.Fatalf("output: %q", b.String())
 	}
+	ver := "/v2"
+	if !internaltest.IsUsingModules() {
+		ver = ""
+	}
 	want := []*Goroutine{
 		{
 			Signature: Signature{
@@ -1421,7 +1429,7 @@ func testPanicUTF8(t *testing.T, c *Context, b *bytes.Buffer, ppDir string) {
 							// This is important to note here the inconsistency in the Go
 							// runtime stack generator. The path is escaped, but symbols are
 							// not.
-							"github.com/maruel/panicparse/cmd/panic/internal/%c3%b9tf8.(*Strùct).Pànic",
+							"github.com/maruel/panicparse"+ver+"/cmd/panic/internal/%c3%b9tf8.(*Strùct).Pànic",
 							Args{Values: []Arg{{Value: 0xc0000b2e48, IsPtr: true}}},
 							// See TestCallUTF8 in stack_test.go for exercising the methods on
 							// Call in this situation.

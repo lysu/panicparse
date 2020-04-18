@@ -10,7 +10,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/maruel/panicparse/stack"
+	"github.com/maruel/panicparse/v2/stack"
 )
 
 var testPalette = &Palette{

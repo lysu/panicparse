@@ -12,7 +12,7 @@ import (
 	"testing"
 
 	"github.com/google/go-cmp/cmp"
-	"github.com/maruel/panicparse/internal/internaltest"
+	"github.com/maruel/panicparse/v2/internal/internaltest"
 )
 
 func TestAggregateNotAggressive(t *testing.T) {
