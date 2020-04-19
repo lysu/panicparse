@@ -36,6 +36,9 @@ type Context struct {
 	// They are in the order that they were printed.
 	Goroutines []*Goroutine
 
+	// Races is the race operations if a race detector output was printed.
+	Races []RaceOp
+
 	// GOROOT is the GOROOT as detected in the traceback, not the on the host.
 	//
 	// It can be empty if no root was determined, for example the traceback
@@ -97,6 +100,9 @@ func (c *Context) ParseDump(r io.Reader, out io.Writer) error {
 		// TODO(maruel): This should be optional too.
 		nameArguments(c.Goroutines)
 	}
+	if s.races != nil {
+		c.Races = s.races
+	}
 	return err
 }
 
@@ -108,6 +114,19 @@ func (c *Context) GuessPaths() {
 		// c.GOROOT == c.localGOROOT.
 		r.updateLocations(c.GOROOT, c.LocalGOROOT, c.GOPATHs)
 	}
+}
+
+// RaceOp is a race condition detected and printed by the Go race detector.
+type RaceOp struct {
+	// Write is true if it was a write operation, otherwise it was a read.
+	Write bool
+	// Addr is the address.
+	Addr uint64
+	// ID is the Goroutine ID.
+	ID int
+
+	// Disallow initialization with unnamed parameters.
+	_ struct{}
 }
 
 // Private stuff.
@@ -266,26 +285,15 @@ const (
 	betweenRaces
 )
 
-type raceOp struct {
-	write bool
-	addr  uint64
-	id    int
-}
-
 // scanningState is the state of the scan to detect and process a stack trace
 // and stores the traces found.
 type scanningState struct {
-	// Determines if race detection is enabled. Currently false since scan()
-	// would swallow the race detector output, but the data is not part of
-	// Context yet.
-	raceDetectionEnabled bool
-
 	// goroutines contains all the goroutines found.
 	goroutines []*Goroutine
 
 	state  state
 	prefix string
-	races  []raceOp
+	races  []RaceOp
 }
 
 // scan scans one line, updates goroutines and move to the next state.
@@ -370,7 +378,7 @@ func (s *scanningState) scan(line string) (string, error) {
 			}
 		}
 		// Switch to race detection mode.
-		if s.raceDetectionEnabled && trimmed == raceHeaderFooter {
+		if trimmed == raceHeaderFooter {
 			// TODO(maruel): We should buffer it in case the next line is not a
 			// WARNING so we can output it back.
 			s.state = gotRaceHeader1
@@ -498,9 +506,9 @@ func (s *scanningState) scan(line string) (string, error) {
 			}
 			// Increase performance by always allocating 4 race operations minimally.
 			if s.races == nil {
-				s.races = make([]raceOp, 0, 4)
+				s.races = make([]RaceOp, 0, 4)
 			}
-			s.races = append(s.races, raceOp{w, addr, id})
+			s.races = append(s.races, RaceOp{Write: w, Addr: addr, ID: id})
 			s.state = gotRaceOperationHeader
 			return "", nil
 		}
@@ -592,9 +600,9 @@ func (s *scanningState) scan(line string) (string, error) {
 			}
 			// Increase performance by always allocating 4 race operations minimally.
 			if s.races == nil {
-				s.races = make([]raceOp, 0, 4)
+				s.races = make([]RaceOp, 0, 4)
 			}
-			s.races = append(s.races, raceOp{w, addr, id})
+			s.races = append(s.races, RaceOp{Write: w, Addr: addr, ID: id})
 			s.state = gotRaceOperationHeader
 			return "", nil
 		}

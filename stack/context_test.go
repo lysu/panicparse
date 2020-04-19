@@ -8,11 +8,9 @@ import (
 	"bufio"
 	"bytes"
 	"errors"
-	"io"
 	"io/ioutil"
 	"os"
 	"path/filepath"
-	"reflect"
 	"regexp"
 	"runtime"
 	"strings"
@@ -1059,44 +1057,6 @@ func TestParseDumpRace(t *testing.T) {
 	if err := c.ParseDump(bytes.NewBufferString(strings.Join(data, "\n")), extra); err != nil {
 		t.Fatal(err)
 	}
-	// Confirm that it doesn't work yet.
-	if c.Goroutines != nil {
-		t.Fatal("expected c to be nil")
-	}
-	compareString(t, strings.Join(data, "\n"), extra.String())
-}
-
-// This test should be deleted once Context state.raceDetectionEnabled is
-// removed and the race detector results is stored in Context.
-func TestRaceManual(t *testing.T) {
-	t.Parallel()
-	// Generated with "panic race":
-	data := []string{
-		"==================",
-		"WARNING: DATA RACE",
-		"Read at 0x00c0000e4030 by goroutine 7:",
-		"  main.panicRace.func1()",
-		"      /go/src/github.com/maruel/panicparse/cmd/panic/main_race.go:37 +0x38",
-		"",
-		"Previous write at 0x00c0000e4030 by goroutine 6:",
-		"  main.panicRace.func1()",
-		"      /go/src/github.com/maruel/panicparse/cmd/panic/main_race.go:37 +0x4e",
-		"",
-		"Goroutine 7 (running) created at:",
-		"  main.panicRace()",
-		"      /go/src/github.com/maruel/panicparse/cmd/panic/main_race.go:35 +0x88",
-		"  main.main()",
-		"      /go/src/github.com/maruel/panicparse/cmd/panic/main.go:252 +0x2d9",
-		"",
-		"Goroutine 6 (running) created at:",
-		"  main.panicRace()",
-		"      /go/src/github.com/maruel/panicparse/cmd/panic/main_race.go:35 +0x88",
-		"  main.main()",
-		"      /go/src/github.com/maruel/panicparse/cmd/panic/main.go:252 +0x2d9",
-		"==================",
-		"",
-	}
-	extra := &bytes.Buffer{}
 	want := []*Goroutine{
 		{
 			Signature: Signature{
@@ -1130,22 +1090,10 @@ func TestRaceManual(t *testing.T) {
 			ID: 6,
 		},
 	}
-	scanner := bufio.NewScanner(bytes.NewBufferString(strings.Join(data, "\n")))
-	scanner.Split(scanLines)
-	s := scanningState{raceDetectionEnabled: true}
-	for scanner.Scan() {
-		line, err := s.scan(scanner.Text())
-		if line != "" {
-			_, _ = io.WriteString(extra, line)
-		}
-		if err != nil {
-			t.Fatal(err)
-		}
-	}
-	compareGoroutines(t, want, s.goroutines)
-	wantOps := []raceOp{{false, 0xc0000e4030, 7}, {true, 0xc0000e4030, 6}}
-	if !reflect.DeepEqual(wantOps, s.races) {
-		t.Fatalf("%v", s.races)
+	compareGoroutines(t, want, c.Goroutines)
+	wantOps := []RaceOp{{Write: false, Addr: 0xc0000e4030, ID: 7}, {Write: true, Addr: 0xc0000e4030, ID: 6}}
+	if diff := cmp.Diff(wantOps, c.Races); diff != "" {
+		t.Fatalf("%s", diff)
 	}
 }
 
@@ -1187,6 +1135,7 @@ func TestPanic(t *testing.T) {
 	custom := map[string]func(*testing.T, *Context, *bytes.Buffer, string){
 		"args_elided": testPanicArgsElided,
 		"mismatched":  testPanicMismatched,
+		"race":        testPanicRace,
 		"str":         testPanicStr,
 		"utf8":        testPanicUTF8,
 	}
@@ -1208,13 +1157,6 @@ func TestPanic(t *testing.T) {
 				t.Fatal(err)
 			}
 			c.GuessPaths()
-			if cmd == "race" {
-				// TODO(maruel): Fix this.
-				if c.Goroutines != nil {
-					t.Fatal("unexpected context")
-				}
-				return
-			}
 
 			if c.Goroutines == nil {
 				t.Fatal("context is nil")
@@ -1222,6 +1164,9 @@ func TestPanic(t *testing.T) {
 			if f := custom[cmd]; f != nil {
 				f(t, c, &b, ppDir)
 				return
+			}
+			if c.Races != nil {
+				t.Fatal("unexpected race")
 			}
 			if c.GOROOT != runtime.GOROOT() {
 				//t.Logf("GOROOT is %q", c.GOROOT)
@@ -1303,6 +1248,87 @@ func testPanicMismatched(t *testing.T, c *Context, b *bytes.Buffer, ppDir string
 		},
 	}
 	similarGoroutines(t, want, c.Goroutines)
+}
+
+func testPanicRace(t *testing.T, c *Context, b *bytes.Buffer, ppDir string) {
+	if c.GOROOT != "" {
+		t.Fatalf("GOROOT is %q", c.GOROOT)
+	}
+	if b.String() != "GOTRACEBACK=all\n" {
+		t.Fatalf("output: %q", b.String())
+	}
+	want := []*Goroutine{
+		{
+			Signature: Signature{
+				State: "running",
+				Stack: Stack{
+					Calls: []Call{
+						{
+							Func: Func{
+								Complete:   "main.panicRaceEnabled",
+								ImportPath: "main",
+								DirName:    "main",
+								Name:       "panicRaceEnabled",
+								IsPkgMain:  true,
+							},
+							SrcPath:      pathJoin(ppDir, "main.go"),
+							Line:         54,
+							SrcName:      "main.go",
+							DirSrc:       "panic/main.go",
+							LocalSrcPath: pathJoin(ppDir, "main.go"),
+							RelSrcPath:   "github.com/maruel/panicparse/cmd/panic/main.go",
+						},
+					},
+				},
+			},
+			ID:    1,
+			First: true,
+		},
+		{
+			Signature: Signature{
+				State: "running",
+				Stack: Stack{
+					Calls: []Call{
+						{
+							Func: Func{
+								Complete:   "main.panicRaceEnabled",
+								ImportPath: "main",
+								DirName:    "main",
+								Name:       "panicRaceEnabled",
+								IsPkgMain:  true,
+							},
+							SrcPath:      pathJoin(ppDir, "main.go"),
+							Line:         54,
+							SrcName:      "main.go",
+							DirSrc:       "panic/main.go",
+							LocalSrcPath: pathJoin(ppDir, "main.go"),
+							RelSrcPath:   "github.com/maruel/panicparse/cmd/panic/main.go",
+						},
+					},
+				},
+			},
+			ID: 2,
+		},
+	}
+	// IDs are not deterministic, so zap them too but take them for the race
+	// detector first.
+	wantOps := []RaceOp{
+		{Addr: pointer, ID: c.Goroutines[0].ID},
+		{Write: true, Addr: pointer, ID: c.Goroutines[1].ID},
+	}
+	for i := range c.Goroutines {
+		c.Goroutines[i].ID = i + 1
+	}
+	similarGoroutines(t, want, c.Goroutines)
+
+	for i := range c.Races {
+		if c.Races[i].Addr > 4*1024*1024 {
+			c.Races[i].Addr = pointer
+		}
+	}
+	if diff := cmp.Diff(c.Races, wantOps); diff != "" {
+		t.Fatal(diff)
+	}
 }
 
 func testPanicStr(t *testing.T, c *Context, b *bytes.Buffer, ppDir string) {
